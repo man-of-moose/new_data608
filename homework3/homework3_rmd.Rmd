@@ -1,0 +1,108 @@
+---
+title: "608 Homework 3 - Shiny"
+author: "Alec"
+date: "10/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)  
+library(dplyr)    
+library(tidyr)    
+library(tibble)      
+library(reshape2)   
+library(stringr) 
+
+library(plotly)
+library(shiny)
+library(rsconnect)
+```
+
+
+```{r}
+# authenticate
+
+rsconnect::setAccountInfo(name='man-of-moose',
+			  token='38AA0D6DCC7CB17D6504F090A7FE84DD',
+			  secret='fA+ocz1KAwE8eC3RTevfDGRCHUBq8GTu+tbHR1x3')
+```
+
+
+
+```{r}
+data <- read_csv("https://raw.githubusercontent.com/charleyferrari/CUNY_DATA_608/master/module3/data/cleaned-cdc-mortality-1999-2010-2.csv")
+```
+
+```{r}
+data
+```
+
+## Section 1
+
+As a researcher, you frequently compare mortality rates from particular causes across different States. You need a visualization that will let you see (for 2010 only) the crude mortality rate, across all States, from one cause (for example, Neoplasms, which are effectively cancers). Create a visualization that allows you to rank States by crude mortality for each cause of death.
+
+```{r}
+cod = "Neoplasms"
+pp1 <- data %>%
+  dplyr::filter(., Year == "2010" & ICD.Chapter == cod) %>% # Filter by year and COD
+  arrange(desc(State), Crude.Rate)                   # Reverse the State order to flip axes
+
+head(pp1)
+```
+
+```{r}
+chart1 <- pp1 %>%
+  plot_ly(x = ~pp1$Crude.Rate, y = pp1$State, type="bar", orientation="h") %>%
+  layout(
+          title= list(text=paste0(cod,"\ncause-based 2010 State Crude Mortality Rates"),
+                      font=list(size = 10)),
+    xaxis=list(title="Crude Rate"),
+    yaxis=list(title="States",
+      categoryorder = "array",
+      categoryarray = rev(~State))                    # Flip axes
+  )
+
+subplot(chart1) 
+```
+
+```{r}
+# Shiny
+
+sidebarPanel(
+  selectInput("cod", label = "Cause of Death:",
+              choices = data$ICD.Chapter)
+)
+
+mainPanel( 
+  plotlyOutput('chart2') 
+)
+
+renderPlot({
+  pp1 <- data %>%
+    filter(., Year == "2010" & ICD.Chapter == input$cod) %>% # Filter by year and COD
+    arrange(desc(State), Crude.Rate)                   # Reverse the State order to flip axes
+  
+  chart1 <- pp1 %>%
+    plot_ly(x = ~pp1$Crude.Rate, y = pp1$State, type="bar", orientation="h") %>%
+    layout(
+          title= list(text=paste0(input$cod,"\ncause-based 2010 State Crude Mortality Rates"),
+                      font=list(size = 10)),
+          xaxis=list(title="Crude Rate"),
+          yaxis=list(title="States",
+            categoryorder = "array",
+            categoryarray = rev(~State))               # Flip axes
+        )
+  
+  subplot(chart1)    
+})
+```
+
+```{r}
+#rsconnect::deployApp('/Users/alecmccabe/Desktop/Masters Program/DATA 608/DATA608/homework3/homework3_rmd.Rmd')
+```
+
+

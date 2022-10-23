@@ -1,0 +1,134 @@
+---
+title: "608 Homework 3 - Shiny"
+author: "Alec"
+date: "10/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)  
+library(dplyr)    
+library(tidyr)    
+library(tibble)      
+library(reshape2)   
+library(stringr) 
+
+library(plotly)
+library(shiny)
+library(rsconnect)
+suppressPackageStartupMessages(library(googleVis))
+```
+
+
+
+```{r}
+data <- read_csv("https://raw.githubusercontent.com/charleyferrari/CUNY_DATA_608/master/module3/data/cleaned-cdc-mortality-1999-2010-2.csv")
+```
+
+```{r}
+head(data,10)
+```
+
+
+## Section 1
+
+As a researcher, you frequently compare mortality rates from particular causes across different States. You need a visualization that will let you see (for 2010 only) the crude mortality rate, across all States, from one cause (for example, Neoplasms, which are effectively cancers). Create a visualization that allows you to rank States by crude mortality for each cause of death.
+
+
+```{r echo=FALSE}
+names(data)[1] <- c("Chapter")
+names(data)[6] <- c("Crude_Rate")
+
+ui<-fluidPage(
+  
+  titlePanel("Mortality Rates by Cause and State (2010)"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("Cause","Select Cause of Death",
+                  choices=levels(as.factor(data$Chapter))
+      )
+    ),
+    
+    mainPanel(
+      htmlOutput("gvisplot")
+    )
+  )
+)
+server<-function(input, output) {
+  r <- reactive(data %>% 
+                   filter(Year == 2010, Chapter == input$Cause) %>% 
+                   select(State, "Crude_Rate") %>% 
+                   arrange(desc("Crude_Rate")))
+  
+  
+  output$gvisplot <- renderGvis({
+    gvisBarChart(r(), chartid = "2010_crude_rates",
+                 options = list(title = paste0("Mortality Rates by Cause and State (2010):\n",
+                                               as.character(input$Cause)),
+                                vAxes = "[{textStyle:{fontSize: 10}}]",
+                                hAxes = "[{textStyle:{fontSize: 15}}]",
+                                height = 1200, width = 1200,
+                                chartArea = "{width: '75%', height: '90%'}",
+                                titleTextStyle="{fontSize:18}", legend = "none"))})
+}
+
+
+shinyApp(ui, server)
+```
+
+
+## Section 2
+
+Often you are asked whether particular States are improving their mortality rates (per cause) faster than, or slower than, the national average. Create a visualization that lets your clients see this for themselves for one cause of death at the time. Keep in mind that the national average should be weighted by the national population.
+
+```{r echo=FALSE}
+ui<-fluidPage(
+  
+  titlePanel("Mortality Rates by Cause and State (2010)"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("Cause","Select Cause of Death",
+                  choices=levels(as.factor(data$Chapter))
+      )
+    ),
+    
+    mainPanel(
+      htmlOutput("gvisplot")
+    )
+  )
+)
+
+server<-function(input, output) {
+  r1 <- reactive(data %>% 
+                   filter(Chapter == input$Cause) %>%
+                   group_by(Year) %>% summarize(Crude_Rate = sum(Population * Crude_Rate) / sum(Population)))
+  
+  r2 <- reactive(r1() %>% 
+                   mutate(c = (Crude_Rate - Crude_Rate[Year == 1999]) / Crude_Rate[Year == 1999]) %>% 
+                   filter(Year == 2010) %>% select(c))
+  
+  r <- reactive(data %>% filter(Chapter == input$Cause) %>% 
+                  group_by(State) %>% select(State, Year, Crude_Rate) %>%
+                  mutate(c = (Crude_Rate - Crude_Rate[Year == 1999]) / Crude_Rate[Year == 1999]) %>% 
+                  filter(Year == 2010) %>% 
+                  mutate(x = c - r2()$'c') %>%
+                  select(State, x) %>% arrange(x))
+  
+  output$gvisplot <- renderGvis({
+    gvisBarChart(r(), chartid = "RateVersusNational", 
+                 options = list(title = paste0("Mortality Rates with respect to national average (2010) ",
+                                               as.character(round(r2()$'c', 4))," )","\n",
+                                               as.character(input$Cause)),
+                                vAxes = "[{textStyle:{fontSize: 10}}]",
+                                hAxes = "[{textStyle:{fontSize: 15}}]",
+                                height = 1200, width = 1200,
+                                chartArea = "{width: '75%', height: '90%'}",
+                                titleTextStyle="{fontSize:18}", legend = "none"))})}
+
+shinyApp(ui, server)
+```
+
