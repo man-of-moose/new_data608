@@ -94,9 +94,6 @@ def steward_graph(input_data):
     steward_trees = pd.read_json(steward_url)
     steward_trees = clean_data(steward_trees)
 
-
-    df = trees[trees.steward == input_data]
-
     return dcc.Graph(
         id='Health by Steward',
         figure={
